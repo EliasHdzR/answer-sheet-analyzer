@@ -9,22 +9,23 @@ from PyQt6.QtGui import QPixmap
 centroids = []
 
 def ProcessImage(original_image):
+    selected_answers_image = RecognizeSelectedAnswers(original_image)  # pa poner en verde las que sí son
+
     # modificar imagen para reconocer solo respuestas seleccionadas
     non_selected_answers_image = RecognizeNotSelectedAnswers(original_image)
-
-    RecognizeSelectedAnswers(original_image) # pa poner en verde las que sí son
+    cv2.imshow("cosa",non_selected_answers_image)
 
     # delimitar filas de respuestas
-    # DelimitateAnswersRows(original_image)
+    DelimitateAnswersRows(original_image)
 
-    return non_selected_answers_image
+    return selected_answers_image
 
 def RecognizeSelectedAnswers(original_image):
     img_gray = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
     blurred_image = cv2.GaussianBlur(img_gray, (5, 5), 0)
 
     # edge detection
-    edges = cv2.Canny(blurred_image, 210, 255)
+    edges = cv2.Canny(blurred_image, 212, 255)
     contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
     selected_answers_image = original_image.copy()
@@ -39,7 +40,7 @@ def RecognizeSelectedAnswers(original_image):
         # agarramos los que no tienen hijos ni padres
         # esta jalada no agarra bien los que quiero ptm
         # TODOS TIENEN QUE SER CIRCULOS CERRRADOS PARA QUE NO SE ARRUINE LA JERARQUIA (mover el threshold de area?)
-        if 80 < area < 500 and hierarchy[i][2] == -1 and hierarchy[i][3] == -1:
+        if 120 < area < 500 and hierarchy[i][2] == -1:
             # pa calcular el centroide de cada contorno
             moment = cv2.moments(c)
             x = int(moment["m10"] / moment["m00"])
@@ -47,11 +48,12 @@ def RecognizeSelectedAnswers(original_image):
             centroids.append((x, y, "green"))
             #print("x:", x, " y:", y, " color:", "green")
 
-            selected_answers_image = cv2.drawContours(selected_answers_image, [c], 0, (0, 255, 0), 1)
+            selected_answers_image = cv2.drawContours(selected_answers_image, [c], 0, (0, 255, 0), 2)
 
     print(hierarchy)
     cv2.imshow("edges", edges)
-    cv2.imshow("selected answers", selected_answers_image)
+    #cv2.imshow("selected answers", selected_answers_image)
+    return selected_answers_image
 
 
 # fuck blob detection, i'm now edging
@@ -67,7 +69,7 @@ def RecognizeNotSelectedAnswers(original_image):
 
     for c in contours:
         area = cv2.contourArea(c)
-        if 80 < area < 180:
+        if 90 < area < 180:
             # pa calcular el centroide de cada contorno
             moment = cv2.moments(c)
 
