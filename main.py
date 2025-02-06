@@ -72,10 +72,18 @@ class Window(QWidget):
         self.originalImageFrame.setPixmap(pixmap)
 
     def ProcessImage(self):
-        self.processedImage = image_processor.ProcessImage(self.originalImage)
+        self.processedImage, question_answers = image_processor.ProcessImage(self.originalImage)
+        
+        # Convertir la lista de respuestas a un string formateado
+        answers_text = "\n".join([f"Columna {w}: Pregunta {q}: {a}" for w, q, a in question_answers])
+        self.answers.setStyleSheet("color: white;")
+
+    
+        # Mostrar en el QTextEdit
+        self.answers.setText(answers_text)
         pixmap = image_processor.CvToPixmap(self.processedImage)
         self.processedImageFrame.setPixmap(pixmap)
-
+        
 if __name__ == '__main__':
     import sys
 
