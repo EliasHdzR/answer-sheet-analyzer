@@ -9,51 +9,71 @@ from PyQt6.QtGui import QPixmap
 centroids = []
 
 def ProcessImage(original_image):
-    selected_answers_image = RecognizeSelectedAnswers(original_image)  # pa poner en verde las que sí son
+    centroids.clear()
+    croppped_columns = GetSeparatedColumns(original_image)
 
-    # modificar imagen para reconocer solo respuestas seleccionadas
-    non_selected_answers_image = RecognizeNotSelectedAnswers(original_image)
-    cv2.imshow("cosa",non_selected_answers_image)
-    
-    # Obtener las respuestas detectadas
-    question_answers = DelimitateAnswersRows(original_image)  # Ahora devuelve los datos
+    for i in range(1,len(croppped_columns)):
+        column = croppped_columns[i]
+        RecognizeSelectedAnswers(column)
+        RecognizeNotSelectedAnswers(column)
+        sorted(centroids, key=lambda ctr: ctr[0])
 
-    return selected_answers_image, question_answers
+    question_answers = []
+    num_question = 1
+    switcher = {
+        0: "D",
+        1: "C",
+        2: "B",
+        3: "A",
+    }
+
+    img_mierda = original_image.copy()
+    for i in range(0,len(centroids),4):
+        group = centroids[i:i+4]
+        found = False
+
+        for j in range(0,len(group)):
+            x, y, color = group[j]
+            if color == "green":
+                img_mierda = cv2.circle(img_mierda, (x, y), 5, (0, 255, 0), -1)
+                img_mierda = cv2.putText(img_mierda, str(num_question), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                question_answers.append(f"Question {num_question}: {switcher[j]}\n")
+                num_question += 1
+                found = True
+
+        #if not found: num_question += 1
+
+    #cv2.imshow("selected answers", selected_answers_image)
+    return img_mierda, question_answers
 
 def RecognizeSelectedAnswers(original_image):
     img_gray = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
     blurred_image = cv2.GaussianBlur(img_gray, (5, 5), 0)
 
     # edge detection
-    edges = cv2.Canny(blurred_image, 212, 255)
-    contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    edges = cv2.Canny(blurred_image, 255, 255)
+    contours, hierarchy = cv2.findContours(edges, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
+    # ordenar contornos de izquierda a derecha
+    contours = sorted(contours, key=lambda ctr: cv2.boundingRect(ctr)[1])
     selected_answers_image = original_image.copy()
 
-    hierarchy = hierarchy[0]
-
-    for i,c in enumerate(contours):
+    for i, c in enumerate(contours):
         area = cv2.contourArea(c)
 
-        # los contornos se generan en la imagen de arriba a abajo, de derecha a izquierda
-        # jerarquia de nodos [sig, anterior, hijo, padre] (checar consola)
-        # agarramos los que no tienen hijos ni padres
-        # esta jalada no agarra bien los que quiero ptm
-        # TODOS TIENEN QUE SER CIRCULOS CERRRADOS PARA QUE NO SE ARRUINE LA JERARQUIA (mover el threshold de area?)
-        if 120 < area < 500 and hierarchy[i][2] == -1:
-            # pa calcular el centroide de cada contorno
+        # agarramos solo los pequeños
+        if 80 < area < 300:
             moment = cv2.moments(c)
+
             x = int(moment["m10"] / moment["m00"])
             y = int(moment["m01"] / moment["m00"])
-            centroids.append((x, y, "green"))
-            #print("x:", x, " y:", y, " color:", "green")
 
-            selected_answers_image = cv2.drawContours(selected_answers_image, [c], 0, (0, 255, 0), 2)
+            if not any((cy - 5 < y < cy + 5 and cx - 5 < x < cx + 5) for cx, cy, _ in centroids):
+                centroids.append((int(x), int(y), "green"))
+                selected_answers_image = cv2.circle(selected_answers_image, (x, y), 5,
+                                                    (0, 255, 0), -1)
 
-    print(hierarchy)
-    cv2.imshow("edges", edges)
-    #cv2.imshow("selected answers", selected_answers_image)
-    return selected_answers_image
+    #cv2.imshow("all circles", selected_answers_image)
 
 
 # fuck blob detection, i'm now edging
@@ -62,12 +82,16 @@ def RecognizeNotSelectedAnswers(original_image):
     blurred_image = cv2.GaussianBlur(img_gray, (5, 5), 0)
 
     # edge detection
-    edges = cv2.Canny(blurred_image, 225, 255)
+    edges = cv2.Canny(blurred_image, 200, 255)
+    cv2.imshow("edges", edges)
     contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
+    # ordenar contornos de izquierda a derecha y de arriba a abajo
+    contours = sorted(contours, key=lambda ctr: cv2.boundingRect(ctr)[1])
 
     non_selected_answers_image = original_image.copy()
 
-    for c in contours:
+    for i,c in enumerate(contours):
         area = cv2.contourArea(c)
         if 90 < area < 180:
             # pa calcular el centroide de cada contorno
@@ -75,92 +99,56 @@ def RecognizeNotSelectedAnswers(original_image):
 
             x = int(moment["m10"] / moment["m00"])
             y = int(moment["m01"] / moment["m00"])
-            centroids.append((x, y, "red"))
 
-            #print("x:", x, " y:", y, " color:", "red")
+            # si aparece en centroid entonces lo cambiamos de color de "green" a "red"
+            for j, (cx,cy,color)  in enumerate(centroids):
+                if cx - 5 < x < cx + 5 and cy - 5 < y < cy + 5:
+                    centroids[j] = (cx, cy, "red")
+                    if centroids[j][2] == "green":
+                        non_selected_answers_image = cv2.circle(non_selected_answers_image, (cx, cy), 5,
+                                                                (0, 255, 0), -1)
+                    else:
+                        non_selected_answers_image = cv2.circle(non_selected_answers_image, (cx, cy), 5,
+                                                                (0, 0, 255), -1)
+                    break
 
-            non_selected_answers_image = cv2.circle(non_selected_answers_image, (x, y), 2, (0, 0, 255), -1)
 
-    return non_selected_answers_image
+    #cv2.imshow("non selected answers", non_selected_answers_image)
 
-def DelimitateAnswersRows(original_image):
+def GetSeparatedColumns(original_image):
     img_gray = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
     th, thresholded_image = cv2.threshold(img_gray, 150, 255, cv2.THRESH_BINARY)
 
     contours, hierarchy = cv2.findContours(image=thresholded_image, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
 
-    question_answers = []  # Lista para almacenar preguntas y respuestas seleccionadas
-    num_pregunta = 0
-    a=0
+    img_divided = original_image.copy()
+    rectangles = []
+
     for c in contours:
         area = cv2.contourArea(c)
         if 10000 < area < 100000:
-            a=a+1
-            if a!=1:
-                num_pregunta += 1
-                print(a)
-                print(num_pregunta)
-                original_image = cv2.drawContours(original_image, [c], -1, (0, 255, 0), 2)
-    
-                # Obtener el bounding box del rectángulo
-                x, y, w, h = cv2.boundingRect(c)   
+            x, y, w, h = cv2.boundingRect(c)
+            rectangles.append((x, y, w, h))
 
-                # Dibujar el número de la pregunta arriba del rectángulo
-                cv2.putText(original_image, f"Columna {num_pregunta}", (x, y - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2) 
+    # ordenar rectangulos de izquierda a derecha
+    rectangles = sorted(rectangles, key=lambda rect: rect[0])
 
-                # Dividir en 20 partes iguales
-                num_divisiones = 20
-                altura_division = h // num_divisiones  # Altura de cada pregunta    
-                espacios = w // 4  # Dividir en 4 opciones (A, B, C, D)sdf
+    # dividismos las columnas de las preguntas
+    test_number_column = cropImage(rectangles[0], original_image)
+    first_column = cropImage(rectangles[1], original_image)
+    second_column = cropImage(rectangles[2], original_image)
+    third_column = cropImage(rectangles[3], original_image)
+    fourth_column = cropImage(rectangles[4], original_image)
 
-                # Dibujar las líneas horizontales dentro del rectángulo
-                for i in range(1, num_divisiones):
-                    if i == 1:
-                        y = y + ((i * altura_division)//3)
-                    y_inicio = (y + i * altura_division) - ((i * altura_division)//20) - altura_division
-                    y_fin = (y + (i + 1) * altura_division) - ((i * altura_division)//20) - altura_division
-                    y_actual = (y + i * altura_division) - ((i * altura_division)//20)
-                    cv2.line(original_image, (x, y_actual), (x + w, y_actual), (0, 255, 255), 2)  # Líneas amarillas
-                
-                    # Dibujar puntos en el centro de cada opción (A, B, C, D)
-                    for j in range(4):  # 4 opciones
-                        cx = x + j * ((espacios//4)*3) + ((espacios//2)*3)  # Centro de la opción
-                        cy = (y_inicio + y_fin) // 2  # Centro vertical de la fila
-                       #cv2.circle(original_image, (cx, cy), 5, (255, 0, 0), -1)  # Puntos azules
+    return test_number_column, first_column, second_column, third_column, fourth_column
 
+def cropImage(rect, image):
+    # esto convierte a blanco lo que no esta dentro de la columna de interes, asi no modificamos el tamaño de la imagen
+    x, y, w, h = rect
+    white_background = np.ones_like(image, dtype=np.uint8) * 255
+    white_background[y:y + h, x:x + w] = image[y:y + h, x:x + w]
 
-                    # Verificar qué opción se seleccionó en esta pregunta
-                    seleccionada = None
-                    opciones = ["A", "B", "C", "D"]
-                    columna = 0
-                    for (cX, cY, color) in centroids:
-                        if num_pregunta == 1:
-                            columna += 1
-                        if y_inicio <= cY < y_fin and color == "red":  # Si está dentro de la fila
-                            seleccionada = None  # Valor por defecto en caso de no encontrar coincidencia
-
-                            for j in range(4):  # 4 opciones
-                                cx = x + j * ((espacios // 4) * 3) + ((espacios // 2) * 3)  # Centro de la opción
-                                if (cx-(espacios//4)) <= cX <=(cx+(espacios//4)):
-                                   cv2.circle(original_image, (cx, cY), 2, (255,0, 0), -1)  # Opciones
-                                   cv2.circle(original_image, (cX, cY), 2, (0, 0, 255), -1)  #Opción elegida
-                                   seleccionada = opciones[j]
-                                   print("Columna: " + str(a) + "| Pregunta: " + str(num_pregunta + (i-2)) + "| Opción: " + str(seleccionada))
-                                   question_answers.append((a, num_pregunta + (i-2), seleccionada))
-                                   break
-
-
-    # Imprimir en consola
-    print("\nRespuestas detectadas:")
-    for columna, pregunta, respuesta in question_answers:
-        print(f"Pregunta {pregunta}: Opción {respuesta}")
-        
-    cv2.imshow("contourrsss", original_image)
-
-    return question_answers
-
-
+    return white_background
 
 def CvToPixmap(cv_image):
     # al parecer tienes que traducir(?) los pixeles de RGB a BGR (?????) pa mostrar la imagen en pyqt(?????????)
