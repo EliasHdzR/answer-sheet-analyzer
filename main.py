@@ -52,12 +52,21 @@ class Window(QWidget):
         layout.setColumnStretch(4, 0)
 
     def HandleOpen(self):
+        """
+        Abre el dialogo para seleccionar una imagen
+        """
+
         start = "./fotos"
         path = QFileDialog.getOpenFileName(self, "Choose File", start, "Images(*.jpg *.png)")[0]
         if path == "": return
         self.UpdateImage(path)
 
     def UpdateImage(self, filepath):
+        """
+        Actualiza la imagen en el contenedor con la imagen seleccionada en la ventana de dialogo
+        :param filepath: str
+        """
+
         self.originalImageFrame.clear()
         self.processedImageFrame.clear()
         self.answers.setText("Answers will be displayed here")
@@ -72,6 +81,10 @@ class Window(QWidget):
         self.originalImageFrame.setPixmap(pixmap)
 
     def ProcessImage(self):
+        """
+        Procesa la imagen seleccionada y muestra las respuestas en el QTextEdit
+        """
+
         self.processedImage, question_answers = image_processor.ProcessImage(self.originalImage)
         
         # Convertir la lista de respuestas a un string formateado
