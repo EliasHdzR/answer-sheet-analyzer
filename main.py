@@ -73,11 +73,16 @@ class Window(QWidget):
 
         # pa poder reescalar la imagen en el contenedor pero manteniendo un factor de escalado pa que no se vea feo
         self.originalImage = cv2.imread(filepath)
+        guiImage = self.originalImage.copy()
+
+        # estoy bien idiota jaja la imagen con la que estabamos trabajando se deformaba segun la forma de la ventana
+        # por eso el tamaño de la gui afectaba a los resultados, ya lo puse a un tamaño fijo de 815x612 que es el bueno
         frame_width = self.originalImageFrame.size().width()
         scale_factor = frame_width / self.originalImage.shape[1]
-        self.originalImage = cv2.resize(self.originalImage, None, fx= scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
+        self.originalImage = cv2.resize(self.originalImage, (815,612), interpolation=cv2.INTER_AREA)
+        guiImage = cv2.resize(guiImage, None, fx= scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
 
-        pixmap = image_processor.CvToPixmap(self.originalImage)
+        pixmap = image_processor.CvToPixmap(guiImage)
         self.originalImageFrame.setPixmap(pixmap)
 
     def ProcessImage(self):
