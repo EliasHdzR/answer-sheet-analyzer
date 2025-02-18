@@ -101,7 +101,7 @@ def RecognizeNotSelectedAnswers(original_image):
 
     # edge detection
     edges = cv2.Canny(blurred_image, 220, 255)
-    cv2.imshow("edges", edges)
+    #cv2.imshow("edges", edges)
     contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
     # ordenar contornos de izquierda a derecha y de arriba a abajo
