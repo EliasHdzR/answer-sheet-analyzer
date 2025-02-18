@@ -100,8 +100,8 @@ def RecognizeNotSelectedAnswers(original_image):
     blurred_image = cv2.GaussianBlur(img_gray, (5, 5), 0)
 
     # edge detection
-    edges = cv2.Canny(blurred_image, 200, 255)
-    #cv2.imshow("edges", edges)
+    edges = cv2.Canny(blurred_image, 220, 255)
+    cv2.imshow("edges", edges)
     contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
     # ordenar contornos de izquierda a derecha y de arriba a abajo
@@ -111,7 +111,7 @@ def RecognizeNotSelectedAnswers(original_image):
 
     for i,c in enumerate(contours):
         area = cv2.contourArea(c)
-        if 90 < area < 180:
+        if 20 < area < 201:
             # pa calcular el centroide de cada contorno
             moment = cv2.moments(c)
 
@@ -122,11 +122,7 @@ def RecognizeNotSelectedAnswers(original_image):
             for j, (cx,cy,color)  in enumerate(centroids):
                 if cx - 5 < x < cx + 5 and cy - 5 < y < cy + 5:
                     centroids[j] = (cx, cy, "red")
-                    if centroids[j][2] == "green":
-                        non_selected_answers_image = cv2.circle(non_selected_answers_image, (cx, cy), 5,
-                                                                (0, 255, 0), -1)
-                    else:
-                        non_selected_answers_image = cv2.circle(non_selected_answers_image, (cx, cy), 5,
+                    non_selected_answers_image = cv2.circle(non_selected_answers_image, (cx, cy), 5,
                                                                 (0, 0, 255), -1)
                     break
 
@@ -203,12 +199,14 @@ def RecognizeExamNumber(centroids_numbers, original_image):
                 exam_number.append(i)
                 original_image = cv2.circle(original_image, (x, y), 5, (0, 255, 0), -1)
                 original_image = cv2.putText(original_image, str(i), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                break
         columnPos -= 1
 
     if len(exam_number) == 0:
         return "No test number detected"
 
     #nota: por alguna razon si abrimos 3.jpg de primeras detecta un verde fantasma, pero solo en la primera vez
+    # corregido
     exam_number = int("".join(map(str, exam_number)))
     return exam_number
 
